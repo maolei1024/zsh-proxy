@@ -8,7 +8,7 @@
 #                                             __/ |
 #                                            |___/
 # -------------------------------------------------
-# A proxy plugin for zsh
+# 一个 zsh 的代理插件
 # Sukka (https://skk.moe)
 
 __read_proxy_config() {
@@ -22,7 +22,7 @@ __read_proxy_config() {
 __check_whether_init() {
 	if [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/status" ] || [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/http" ] || [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/socks5" ] || [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/no_proxy" ]; then
 		echo "----------------------------------------"
-		echo "You should run following command first:"
+		echo "请先运行以下命令："
 		echo "$ init_proxy"
 		echo "----------------------------------------"
 	else
@@ -32,33 +32,57 @@ __check_whether_init() {
 
 __check_ip() {
 	echo "========================================"
+	echo "Check what your IP is"
+	echo "----------------------------------------"
+	ipv4=$(curl -s -k https://api-ipv4.ip.sb/ip -H 'user-agent: zsh-proxy')
+	if [[ "$ipv4" != "" ]]; then
+		echo "IPv4: $ipv4"
+	else
+		echo "IPv4: -"
+	fi
+	echo "----------------------------------------"
+	ipv6=$(curl -s -k -m10 https://api-ipv6.ip.sb/ip -H 'user-agent: zsh-proxy')
+	if [[ "$ipv6" != "" ]]; then
+		echo "IPv6: $ipv6"
+	else
+		echo "IPv6: -"
+	fi
+	if command -v python >/dev/null; then
+		geoip=$(curl -s -k https://api.ip.sb/geoip -H 'user-agent: zsh-proxy')
+		if [[ "$geoip" != "" ]]; then
+			echo "----------------------------------------"
+			echo "Info: "
+			echo "$geoip" | python -m json.tool
+		fi
+	fi
+	echo "========================================"
 }
 
 __config_proxy() {
 	echo "========================================"
-	echo "ZSH Proxy Plugin Config"
+	echo "ZSH 代理插件配置"
 	echo "----------------------------------------"
 
-	echo -n "[socks5 proxy] {Default as 127.0.0.1:1080}
-(address:port): "
+	echo -n "[socks5 代理] {默认值为 127.0.0.1:1080}
+(地址:端口): "
 	read -r __read_socks5
 
-	echo -n "[socks5 type] Select the proxy type you want to use {Default as socks5}:
+	echo -n "[socks5 类型] 选择你想使用的代理类型 {默认值为 socks5}:
 1. socks5
-2. socks5h (resolve DNS through the proxy server)
-(1 or 2): "
+2. socks5h (通过代理服务器解析 DNS)
+(1 或 2): "
 	read -r __read_socks5_type
 
-	echo -n "[http proxy]   {Default as 127.0.0.1:8080}
-(address:port): "
+	echo -n "[http 代理]   {默认值为 127.0.0.1:8080}
+(地址:端口): "
 	read -r __read_http
 
-	echo -n "[no proxy domain] {Default as 'localhost,127.0.0.1,localaddress,.localdomain.com'}
-(comma separate domains): "
+	echo -n "[不使用代理的域名] {默认值为 'localhost,127.0.0.1,localaddress,.localdomain.com'}
+(用逗号分隔域名): "
 	read -r __read_no_proxy
 
-	echo -n "[git proxy type] {Default as socks5}
-(socks5 or http): "
+	echo -n "[git 代理类型] {默认值为 socks5}
+(socks5 或 http): "
 	read -r __read_git_proxy_type
 	echo "========================================"
 
@@ -92,7 +116,7 @@ __config_proxy() {
 
 # ==================================================
 
-# Proxy for APT
+# APT 代理
 
 __enable_proxy_apt() {
 	if [ -d "/etc/apt/apt.conf.d" ]; then
@@ -109,10 +133,10 @@ __disable_proxy_apt() {
 	fi
 }
 
-# Proxy for pip
-# pip can read -r http_proxy & https_proxy
+# pip 代理
+# pip 可以读取 http_proxy 和 https_proxy
 
-# Proxy for terminal
+# 终端代理
 
 __enable_proxy_all() {
 	# http_proxy
@@ -148,7 +172,7 @@ __disable_proxy_all() {
 	unset no_proxy
 }
 
-# Proxy for Git
+# Git 代理
 
 __enable_proxy_git() {
 	if [ "${__ZSHPROXY_GIT_PROXY_TYPE}" = "http" ]; then
@@ -165,7 +189,7 @@ __disable_proxy_git() {
 	git config --global --unset https.proxy
 }
 
-# Clone with SSH can be sfind at https://github.com/comwrg/FUCK-GFW#git
+# 使用 SSH 克隆可以在 https://github.com/comwrg/FUCK-GFW#git 找到
 
 # NPM
 
@@ -207,32 +231,31 @@ __disable_proxy_npm() {
 __enable_proxy() {
 	if [ -z "${__ZSHPROXY_STATUS}" ] || [ -z "${__ZSHPROXY_SOCKS5}" ] || [ -z "${__ZSHPROXY_HTTP}" ]; then
 		echo "========================================"
-		echo "zsh-proxy can not read -r configuration."
-		echo "You may have to reinitialize and reconfigure the plugin."
-		echo "Use following commands would help:"
+		echo "zsh-proxy 无法读取配置。"
+		echo "你可能需要重新初始化并重新配置插件。"
+		echo "使用以下命令可能会有所帮助："
 		echo "$ init_proxy"
 		echo "$ config_proxy"
 		echo "$ proxy"
 		echo "========================================"
 	else
 		echo "========================================"
-		echo -n "Resetting proxy... "
+		echo -n "重置代理... "
 		__disable_proxy_all
 		__disable_proxy_git
 		__disable_proxy_npm
 		__disable_proxy_apt
-		echo "Done!"
+		echo "完成!"
 		echo "----------------------------------------"
-		echo "Enable proxy for:"
+		echo "启用代理："
 		echo "- shell"
 		__enable_proxy_all
 		echo "- git"
-		__enable_proxy_git
 		# npm & yarn & pnpm"
 		__enable_proxy_npm
 		# apt"
 		__enable_proxy_apt
-		echo "Done!"
+		echo "完成!"
 	fi
 }
 
@@ -272,7 +295,7 @@ init_proxy() {
 	touch "${ZDOTDIR:-${HOME}}/.zsh-proxy/no_proxy"
 	touch "${ZDOTDIR:-${HOME}}/.zsh-proxy/git_proxy_type"
 	echo "----------------------------------------"
-	echo "Great! The zsh-proxy is initialized"
+	echo "太棒了！zsh-proxy 已初始化"
 	echo ""
 	echo -E '  ______ _____ _    _   _____  '
 	echo -E ' |___  // ____| |  | | |  __ \ '
@@ -283,7 +306,7 @@ init_proxy() {
 	echo -E '                                             __/ |'
 	echo -E '                                            |___/ '
 	echo "----------------------------------------"
-	echo "Now you might want to run following command:"
+	echo "现在你可能想运行以下命令："
 	echo "$ config_proxy"
 	echo "----------------------------------------"
 }
@@ -295,13 +318,11 @@ config_proxy() {
 proxy() {
 	echo "1" >"${ZDOTDIR:-${HOME}}/.zsh-proxy/status"
 	__enable_proxy
-	__check_ip
 }
 
 noproxy() {
 	echo "0" >"${ZDOTDIR:-${HOME}}/.zsh-proxy/status"
 	__disable_proxy
-	__check_ip
 }
 
 myip() {
