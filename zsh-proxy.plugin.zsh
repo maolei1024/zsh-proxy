@@ -12,23 +12,13 @@
 # Sukka (https://skk.moe)
 
 __read_proxy_config() {
-	__ZSHPROXY_STATUS=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/status")
-	__ZSHPROXY_SOCKS5=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/socks5")
-	__ZSHPROXY_HTTP=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/http")
-	__ZSHPROXY_NO_PROXY=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/no_proxy")
-	__ZSHPROXY_GIT_PROXY_TYPE=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/git_proxy_type")
+	__ZSHPROXY_SOCKS5=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/socks5" 2>/dev/null)
+	__ZSHPROXY_HTTP=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/http" 2>/dev/null)
+	__ZSHPROXY_NO_PROXY=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/no_proxy" 2>/dev/null)
+	__ZSHPROXY_GIT_PROXY_TYPE=$(cat "${ZDOTDIR:-${HOME}}/.zsh-proxy/git_proxy_type" 2>/dev/null)
 }
 
-__check_whether_init() {
-	if [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/status" ] || [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/http" ] || [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/socks5" ] || [ ! -f "${ZDOTDIR:-${HOME}}/.zsh-proxy/no_proxy" ]; then
-		echo "----------------------------------------"
-		echo "请先运行以下命令："
-		echo "$ init_proxy"
-		echo "----------------------------------------"
-	else
-		__read_proxy_config
-	fi
-}
+
 
 __check_ip() {
 	echo "========================================"
@@ -59,6 +49,9 @@ __check_ip() {
 }
 
 __config_proxy() {
+	# 自动初始化配置目录
+	mkdir -p "${ZDOTDIR:-${HOME}}/.zsh-proxy"
+
 	echo "========================================"
 	echo "ZSH 代理插件配置"
 	echo "----------------------------------------"
@@ -155,7 +148,9 @@ __enable_proxy_all() {
 	export ALL_PROXY="${__ZSHPROXY_SOCKS5}"
 	export all_proxy="${__ZSHPROXY_SOCKS5}"
 
+	# no_proxy
 	export no_proxy="${__ZSHPROXY_NO_PROXY}"
+	export NO_PROXY="${__ZSHPROXY_NO_PROXY}"
 }
 
 __disable_proxy_all() {
@@ -170,6 +165,7 @@ __disable_proxy_all() {
 	unset ALL_PROXY
 	unset all_proxy
 	unset no_proxy
+	unset NO_PROXY
 }
 
 # Git 代理
@@ -226,17 +222,50 @@ __disable_proxy_npm() {
 	fi
 }
 
+# Go 代理
+
+__enable_proxy_go() {
+	if command -v go >/dev/null; then
+		export GOPROXY="https://proxy.golang.org,direct"
+		echo "- go"
+	fi
+}
+
+__disable_proxy_go() {
+	unset GOPROXY
+}
+
+# Pip 代理
+
+__enable_proxy_pip() {
+	if command -v pip >/dev/null || command -v pip3 >/dev/null; then
+		local pip_cmd="pip"
+		if ! command -v pip >/dev/null && command -v pip3 >/dev/null; then
+			pip_cmd="pip3"
+		fi
+		${pip_cmd} config set global.proxy "${__ZSHPROXY_HTTP}" 2>/dev/null
+		echo "- pip"
+	fi
+}
+
+__disable_proxy_pip() {
+	if command -v pip >/dev/null || command -v pip3 >/dev/null; then
+		local pip_cmd="pip"
+		if ! command -v pip >/dev/null && command -v pip3 >/dev/null; then
+			pip_cmd="pip3"
+		fi
+		${pip_cmd} config unset global.proxy 2>/dev/null
+	fi
+}
+
 # ==================================================
 
 __enable_proxy() {
-	if [ -z "${__ZSHPROXY_STATUS}" ] || [ -z "${__ZSHPROXY_SOCKS5}" ] || [ -z "${__ZSHPROXY_HTTP}" ]; then
+	if [ -z "${__ZSHPROXY_SOCKS5}" ] || [ -z "${__ZSHPROXY_HTTP}" ]; then
 		echo "========================================"
 		echo "zsh-proxy 无法读取配置。"
-		echo "你可能需要重新初始化并重新配置插件。"
-		echo "使用以下命令可能会有所帮助："
-		echo "$ init_proxy"
+		echo "请先运行以下命令配置代理："
 		echo "$ config_proxy"
-		echo "$ proxy"
 		echo "========================================"
 	else
 		echo "========================================"
@@ -245,31 +274,40 @@ __enable_proxy() {
 		__disable_proxy_git
 		__disable_proxy_npm
 		__disable_proxy_apt
+		__disable_proxy_go
+		__disable_proxy_pip
 		echo "完成!"
 		echo "----------------------------------------"
 		echo "启用代理："
 		echo "- shell"
 		__enable_proxy_all
+		__enable_proxy_git
 		echo "- git"
-		# npm & yarn & pnpm"
+		# npm & yarn & pnpm
 		__enable_proxy_npm
-		# apt"
+		# apt
 		__enable_proxy_apt
+		# go
+		__enable_proxy_go
+		# pip
+		__enable_proxy_pip
+		echo "----------------------------------------"
 		echo "完成!"
+		echo "========================================"
 	fi
 }
 
 __disable_proxy() {
+	echo "========================================"
+	echo "禁用代理..."
 	__disable_proxy_all
 	__disable_proxy_git
 	__disable_proxy_npm
 	__disable_proxy_apt
-}
-
-__auto_proxy() {
-	if [ "${__ZSHPROXY_STATUS}" = "1" ]; then
-		__enable_proxy_all
-	fi
+	__disable_proxy_go
+	__disable_proxy_pip
+	echo "完成!"
+	echo "========================================"
 }
 
 __zsh_proxy_update() {
@@ -286,42 +324,15 @@ __zsh_proxy_update() {
 
 # ==================================================
 
-init_proxy() {
-	mkdir -p "${ZDOTDIR:-${HOME}}/.zsh-proxy"
-	touch "${ZDOTDIR:-${HOME}}/.zsh-proxy/status"
-	echo "0" >"${ZDOTDIR:-${HOME}}/.zsh-proxy/status"
-	touch "${ZDOTDIR:-${HOME}}/.zsh-proxy/http"
-	touch "${ZDOTDIR:-${HOME}}/.zsh-proxy/socks5"
-	touch "${ZDOTDIR:-${HOME}}/.zsh-proxy/no_proxy"
-	touch "${ZDOTDIR:-${HOME}}/.zsh-proxy/git_proxy_type"
-	echo "----------------------------------------"
-	echo "太棒了！zsh-proxy 已初始化"
-	echo ""
-	echo -E '  ______ _____ _    _   _____  '
-	echo -E ' |___  // ____| |  | | |  __ \ '
-	echo -E '    / /| (___ | |__| | | |__| ) __ _____  ___   _ '
-	echo -E "   / /  \___ \|  __  | |  ___/ '__/ _ \ \/ | | | |"
-	echo -E '  / /__ ____) | |  | | | |   | | | (_) >  <| |_| |'
-	echo -E ' /_____|_____/|_|  |_| |_|   |_|  \___/_/\_\\__, |'
-	echo -E '                                             __/ |'
-	echo -E '                                            |___/ '
-	echo "----------------------------------------"
-	echo "现在你可能想运行以下命令："
-	echo "$ config_proxy"
-	echo "----------------------------------------"
-}
-
 config_proxy() {
 	__config_proxy
 }
 
 proxy() {
-	echo "1" >"${ZDOTDIR:-${HOME}}/.zsh-proxy/status"
 	__enable_proxy
 }
 
 noproxy() {
-	echo "0" >"${ZDOTDIR:-${HOME}}/.zsh-proxy/status"
 	__disable_proxy
 }
 
@@ -333,5 +344,5 @@ zsh_proxy_update() {
 	__zsh_proxy_update
 }
 
-__check_whether_init
-__auto_proxy
+# 读取已有配置（如果存在）
+__read_proxy_config
